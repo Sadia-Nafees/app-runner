@@ -1,27 +1,55 @@
-const express = require('express');
+const express = require("express");
+const { Pool } = require("pg");
+require("dotenv").config();
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Sample data
-const sampleData = [
-  { id: 1, name: 'Item 1', description: 'This is the first item' },
-  { id: 2, name: 'Item 2', description: 'This is the second item' }
-];
+// PostgreSQL connection setup
+const pool = new Pool({
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASSWORD, // replace with your password
+  port: process.env.DB_PORT,
+});
+
+// Middleware to parse JSON
+app.use(express.json());
 
 // API 1: Get all items
-app.get('/api/items', (req, res) => {
-  res.status(200).json({ data: sampleData });
+app.get("/api/items", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM items");
+    res.status(200).json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ success: false, message: "Error retrieving items" });
+  }
 });
 
 // API 2: Get item by ID
-app.get('/api/items/:id', (req, res) => {
+app.get("/api/items/:id", async (req, res) => {
   const itemId = parseInt(req.params.id, 10);
-  const item = sampleData.find(i => i.id === itemId);
 
-  if (item) {
-    res.status(200).json({ data: item });
-  } else {
-    res.status(404).json({ message: 'Item not found' });
+  // Validate item ID
+  if (isNaN(itemId)) {
+    return res.status(400).json({ success: false, message: "Invalid item ID" });
+  }
+
+  try {
+    const result = await pool.query("SELECT * FROM items WHERE id = $1", [
+      itemId,
+    ]);
+
+    if (result.rows.length > 0) {
+      res.status(200).json({ success: true, data: result.rows[0] });
+    } else {
+      res.status(404).json({ success: false, message: "Item not found" });
+    }
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ success: false, message: "Error retrieving item" });
   }
 });
 
